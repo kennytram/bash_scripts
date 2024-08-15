@@ -17,6 +17,7 @@ REPORT_FILE="/home/teamsupport2/logs/morning_check_report_${BUSINESSDATE}.log"
 BANKSIM_FILE_NAME_PATTERN="*.log"
 INPUT_FILE_NAME_PATTERN="*${BUSINESSDATE}*.csv"
 OUTPUT_FILE_NAME_PATTERN="*${BUSINESSDATE}*.csv"
+XLS_FILE_NAME_PATTERN="*.xls"
 
 BANKSIM_TYPE_FILE="logs"
 INPUT_TYPE_FILE="input"
@@ -30,16 +31,16 @@ declare -A ARR_SYS_BANKSIM_FILES
 declare -A ARR_SYS_INPUT_FILES
 declare -A ARR_SYS_OUTPUT_FILES
 
-TBA_BANKSIM_FILE_PATTERNS="eod_extract_loan_trades_,eod_extract_repo_trades_,monitor_and_load_client_trades_"
-PMA_BANKSIM_FILE_PATTERNS="eod_extract_loan_trades_,eod_extract_repo_trades_,load_eod_trades_,load_market_data_,load_referential_data_"
-CRS_BANKSIM_FILE_PATTERNS="load_market_data_,load_referential_data_,load_trades_,risk_computation_,risk_dataset_generation_"
+TBA_BANKSIM_FILE_PATTERNS="eod_extract_loan_trades_:log,eod_extract_repo_trades_:log,monitor_and_load_client_trades_:log"
+PMA_BANKSIM_FILE_PATTERNS="eod_extract_loan_trades_:log,eod_extract_repo_trades_:log,load_eod_trades_:log,load_market_data_:log,load_referential_data_:log"
+CRS_BANKSIM_FILE_PATTERNS="load_market_data_:log,load_referential_data_:log,load_trades_:log,risk_computation_:log,risk_dataset_generation_:log"
 
-PMA_INPUT_FILE_PATTERNS="Client_PTF_,Clients_,FX_,eod_loan_trades_,eod_repo_trades_,stock_data_"
-CRS_INPUT_FILE_PATTERNS="Client_PTF_,Clients_rating_,MasterContractProductData_,backoffice_repo_,credit_limit_data_,stock_data_"
+PMA_INPUT_FILE_PATTERNS="Client_PTF_:csv,Clients_:csv,FX_:csv,eod_loan_trades_:csv,eod_repo_trades_:csv,stock_data_:csv"
+CRS_INPUT_FILE_PATTERNS="Client_PTF_:csv,Clients_rating_:csv,MasterContractProductData_:csv,backoffice_repo_:csv,credit_limit_data_:csv,stock_data_:csv"
 
-TBA_OUTPUT_FILE_PATTERNS="eod_loan_trades_,eod_repo_trades_"
-PMA_OUTPUT_FILE_PATTERNS="backoffice_loans_,backoffice_repo_,collat_data_"
-CRS_OUTPUT_FILE_PATTERNS="risk_dataset"
+TBA_OUTPUT_FILE_PATTERNS="eod_loan_trades_:csv,eod_repo_trades_:csv"
+PMA_OUTPUT_FILE_PATTERNS="backoffice_loans_:csv,backoffice_repo_:csv,collat_data_:csv"
+CRS_OUTPUT_FILE_PATTERNS="risk_dataset:xls"
 
 ARR_SYS_BANKSIM_FILES['tba']=$TBA_BANKSIM_FILE_PATTERNS
 ARR_SYS_BANKSIM_FILES['pma']=$PMA_BANKSIM_FILE_PATTERNS
@@ -51,6 +52,7 @@ ARR_SYS_INPUT_FILES['crs']=$CRS_INPUT_FILE_PATTERNS
 ARR_SYS_OUTPUT_FILES['tba']=$TBA_OUTPUT_FILE_PATTERNS
 ARR_SYS_OUTPUT_FILES['pma']=$PMA_OUTPUT_FILE_PATTERNS
 ARR_SYS_OUTPUT_FILES['crs']=$CRS_OUTPUT_FILE_PATTERNS
+
 declare -A patterns_dir
 declare -A arr_received
 
@@ -115,7 +117,7 @@ zip_files() {
     local type_file=$4
     output_dir="/home/teamsupport2/archive/${sys}_${type_file}_${BUSINESSDATE}.tar.gz"
 
-    find "${input_dir}" -type f -name "${file_name_pattern}" -exec tar -czvf ${output_dir} {} + > /dev/null 2>&1
+    find "${input_dir}" -type f \( -name "${file_name_pattern}" -o -name "${XLS_FILE_NAME_PATTERN}" \) -exec tar -czvf ${output_dir} {} + > /dev/null 2>&1
 
     if [ $? -eq 0 ]; then
         echo "${type_file^} archive created successfully" >> $REPORT_FILE
@@ -132,8 +134,10 @@ check_missing_files() {
 
     IFS=',' read -r -a arr_patterns <<< "$patterns"
     for file_name_pattern in "${arr_patterns[@]}"; do
-        pattern=$( [ "${filename_pattern}" != "risk_dataset" ] && echo "${directory}${file_name_pattern}${local_date}*" \
-            || echo "${directory}${file_name_pattern}*")
+        file_name="${file_name_pattern%:*}"
+        file_ext="${file_name_pattern##*:}"
+        pattern=$( [ "${file_name}" != "risk_dataset" ] && echo "${directory}${file_name}${local_date}*.${file_ext}" \
+            || echo "${directory}${file_name}.${file_ext}")
         if [ -z "$(ls ${pattern} 2>/dev/null)" ]; then
             missing_files+="${pattern} "
         fi
@@ -147,13 +151,45 @@ check_mandatory_files() {
     #local file_ext=$3
     local date=$3
     local arr_sys=$4
-    local missing_file=""
+    local missing_files=""
 
     if [ -n "${arr_sys[$sys]}" ]; then
-        missing_file+=$(check_missing_files "${arr_sys[$sys]}" $dir $date)
+        missing_files+=$(check_missing_files "${arr_sys[$sys]}" $dir $date)
     fi
 
-    echo "$missing_file"
+    echo "$missing_files"
+}
+
+check_new_missables() {
+    local sys=$1
+    local banksim_dir=$2
+    local output_dir=$3
+    local arr_sys=$4
+    local missing_files=""
+    local results=$(grep -r "Data successfully written to \|Data written to CSV file " "${banksim_dir}" | awk -F "Data successfully written to |Data written to CSV file " '{print $2}')
+    IFS=',' read -r -a arr_patterns <<< "$arr_sys"
+
+    while IFS= read -r line; do
+        match_found=false
+        filename=$(basename "$line")
+        whole_filename="$filename"
+        filename="${filename%.*}"
+        for file_name_pattern in "${arr_patterns[@]}"; do
+            file_name_pattern="${file_name_pattern%:*}"
+            if [[ "$filename" == "${file_name_pattern}"* ]]; then
+                match_found=true
+                break
+            fi
+        done
+
+        if [[ $match_found == false ]]; then
+            if [ ! -e "${output_dir}${whole_filename}" ]; then
+                missing_files+="${output_dir}${whole_filename} "
+            fi
+        fi
+    done <<< "$results"
+
+    echo "$missing_files"
 }
 
 print_missing_files_info() {
@@ -246,12 +282,11 @@ for sys in ${ARR_SYS[@]}; do
     missing_files+=$(check_mandatory_files $sys $dir_input $BUSINESSDATE "${ARR_SYS_INPUT_FILES[$sys]}")
     missing_files+=$(check_mandatory_files $sys $dir_output $BUSINESSDATE "${ARR_SYS_OUTPUT_FILES[$sys]}")
 
+    missing_files+=$(check_new_missables $sys $dir_banksim $dir_output "${ARR_SYS_OUTPUT_FILES[$sys]}")
+
     echo -e '\n' >> $REPORT_FILE
 
     print_missing_files_info "$missing_files"
-            if [ ! -e "${output_dir}${whole_filename}" ]; then
-                missing_files+="${output_dir}${whole_filename}* "
-            fi
 
 done
 
@@ -259,16 +294,16 @@ SQL_COMMANDS_FILE="/home/teamsupport2/sql_commands_current_morning_check.txt"
 formatted_date=$(echo "$BUSINESSDATE" | sed 's/\(....\)\(..\)\(..\)/\1-\2-\3/')
 echo "$formatted_date" > $SQL_COMMANDS_FILE
 
-echo "select count(*) as "TBA Trades" from TradeBooking.Trades where TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
-echo "select count(*) as "TBA LoanTrades" from TradeBooking.LoanTrades where TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
-echo "select count(*) as "TBA RepoTrades" from TradeBooking.RepoTrades where TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
+echo "select count(*) as 'TBA Trades' from TradeBooking.Trades where TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
+echo "select count(*) as 'TBA LoanTrades' from TradeBooking.LoanTrades where TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
+echo "select count(*) as 'TBA RepoTrades' from TradeBooking.RepoTrades where TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
 
-echo "select count(*) as "PMA Trades" from PoseManagement.Trades where TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
-echo "select count(*) as "PMA LoanTrades" from PoseManagement.LoanTrades where TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
-echo "select count(*) as "PMA RepoTrades" from PoseManagement.RepoTrades where TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
+echo "select count(*) as 'PMA Trades' from PoseManagement.Trades where TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
+echo "select count(*) as 'PMA LoanTrades' from PoseManagement.LoanTrades where TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
+echo "select count(*) as 'PMA RepoTrades' from PoseManagement.RepoTrades where TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
 
-echo "select count(*) as "CRA Loan" from creditriskdb.BackOffice_Loan where Timestamp='$formatted_date';" >> $SQL_COMMANDS_FILE
-echo "select count(*) as "CRA Repo" from creditriskdb.BackOffice_Repo where Timestamp='$formatted_date';" >> $SQL_COMMANDS_FILE
+echo "select count(*) as 'CRA Loan' from creditriskdb.BackOffice_Loan where Timestamp='$formatted_date';" >> $SQL_COMMANDS_FILE
+echo "select count(*) as 'CRA Repo' from creditriskdb.BackOffice_Repo where Timestamp='$formatted_date';" >> $SQL_COMMANDS_FILE
 
 ONE_SQL_TABLE_COMMANDS_FILE="/home/teamsupport2/one_sql_table_commands_current_morning_check.txt"
 echo "$formatted_date" > $ONE_SQL_TABLE_COMMANDS_FILE
