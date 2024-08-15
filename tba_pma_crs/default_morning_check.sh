@@ -32,16 +32,16 @@ declare -A ARR_SYS_INPUT_FILES
 declare -A ARR_SYS_OUTPUT_FILES
 #declare -A FILE_PATTERNS_TO_CHECK_SERVER_DATE
 
-TBA_BANKSIM_FILE_PATTERNS="eod_extract_loan_trades_,eod_extract_repo_trades_,monitor_and_load_client_trades_"
-PMA_BANKSIM_FILE_PATTERNS="eod_extract_loan_trades_,eod_extract_repo_trades_,load_eod_trades_,load_market_data_,load_referential_data_"
-CRS_BANKSIM_FILE_PATTERNS="load_market_data_,load_referential_data_,load_trades_,risk_computation_,risk_dataset_generation_"
+TBA_BANKSIM_FILE_PATTERNS="eod_extract_loan_trades_:log,eod_extract_repo_trades_:log,monitor_and_load_client_trades_:log"
+PMA_BANKSIM_FILE_PATTERNS="eod_extract_loan_trades_:log,eod_extract_repo_trades_:log,load_eod_trades_:log,load_market_data_:log,load_referential_data_:log"
+CRS_BANKSIM_FILE_PATTERNS="load_market_data_:log,load_referential_data_:log,load_trades_:log,risk_computation_:log,risk_dataset_generation_:log"
 
-PMA_INPUT_FILE_PATTERNS="Client_PTF_,Clients_,FX_,eod_loan_trades_,eod_repo_trades_,stock_data_"
-CRS_INPUT_FILE_PATTERNS="Client_PTF_,Clients_rating_,MasterContractProductData_,backoffice_repo_,credit_limit_data_,stock_data_"
+PMA_INPUT_FILE_PATTERNS="Client_PTF_:csv,Clients_:csv,FX_:csv,eod_loan_trades_:csv,eod_repo_trades_:csv,stock_data_:csv"
+CRS_INPUT_FILE_PATTERNS="Client_PTF_:csv,Clients_rating_:csv,MasterContractProductData_:csv,backoffice_repo_:csv,credit_limit_data_:csv,stock_data_:csv"
 
-TBA_OUTPUT_FILE_PATTERNS="eod_loan_trades_,eod_repo_trades_"
-PMA_OUTPUT_FILE_PATTERNS="backoffice_loans_,backoffice_repo_,collat_data_"
-CRS_OUTPUT_FILE_PATTERNS="risk_dataset"
+TBA_OUTPUT_FILE_PATTERNS="eod_loan_trades_:csv,eod_repo_trades_:csv"
+PMA_OUTPUT_FILE_PATTERNS="backoffice_loans_:csv,backoffice_repo_:csv,collat_data_:csv"
+CRS_OUTPUT_FILE_PATTERNS="risk_dataset:xls"
 
 ARR_SYS_BANKSIM_FILES['tba']=$TBA_BANKSIM_FILE_PATTERNS
 ARR_SYS_BANKSIM_FILES['pma']=$PMA_BANKSIM_FILE_PATTERNS
@@ -53,6 +53,7 @@ ARR_SYS_INPUT_FILES['crs']=$CRS_INPUT_FILE_PATTERNS
 ARR_SYS_OUTPUT_FILES['tba']=$TBA_OUTPUT_FILE_PATTERNS
 ARR_SYS_OUTPUT_FILES['pma']=$PMA_OUTPUT_FILE_PATTERNS
 ARR_SYS_OUTPUT_FILES['crs']=$CRS_OUTPUT_FILE_PATTERNS
+
 #FILE_PATTERNS_TO_CHECK_SERVER_DATE['tba']=$TBA_BANKSIM_FILE_PATTERNS
 #FILE_PATTERNS_TO_CHECK_SERVER_DATE['pma']=$PMA_BANKSIM_FILE_PATTERNS
 #FILE_PATTERNS_TO_CHECK_SERVER_DATE['crs']=$CRS_BANKSIM_FILE_PATTERNS
@@ -136,8 +137,10 @@ check_missing_files() {
     missing_files=""
     IFS=',' read -r -a arr_patterns <<< "$patterns"
     for file_name_pattern in "${arr_patterns[@]}"; do
-        pattern=$( [ "${file_name_pattern}" != "risk_dataset" ] && echo "${directory}${file_name_pattern}${local_date}*" \
-            || echo "${directory}${file_name_pattern}*")
+        file_name="${file_name_pattern%:*}"
+        file_ext="${file_name_pattern##*:}"
+        pattern=$( [ "${file_name}" != "risk_dataset" ] && echo "${directory}${file_name}${local_date}*.${file_ext}" \
+            || echo "${directory}${file_name}.${file_ext}")
         if [ -z "$(ls ${pattern} 2>/dev/null)" ]; then
             missing_files+="${pattern} "
         fi
@@ -172,8 +175,10 @@ check_new_missables() {
     while IFS= read -r line; do
         match_found=false
         filename=$(basename "$line")
+        whole_filename="$filename"
         filename="${filename%.*}"
         for file_name_pattern in "${arr_patterns[@]}"; do
+            file_name_pattern="${file_name_pattern%:*}"
             if [[ "$filename" == "${file_name_pattern}"* ]]; then
                 match_found=true
                 break
@@ -181,7 +186,9 @@ check_new_missables() {
         done
 
         if [[ $match_found == false ]]; then
-            missing_files+="${output_dir}${filename}* "
+            if [ ! -e "${output_dir}${whole_filename}" ]; then
+                missing_files+="${output_dir}${whole_filename} "
+            fi
         fi
     done <<< "$results"
 
