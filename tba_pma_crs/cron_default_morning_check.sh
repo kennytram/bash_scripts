@@ -85,20 +85,33 @@ check_amount_files() {
 }
 
 calculate_received() {
-    local pattern_dir=$1
+    local sys=$1
+    local pattern_dir=$2
 
-    countWheader=$(wc -l ${pattern_dir}.csv 2>/dev/null | awk 'END {print $1}');
-    countHeaders=$(ls -l ${pattern_dir}.csv 2>/dev/null | wc -l);
+    if [[ $sys == 'crs' ]]; then
+        formatted_date=$(echo $BUSINESSDATE | sed 's/\(....\)\(..\)\(..\)/\1-\2-\3/')
+        countWheader=$(awk -F, -v date="$formatted_date" '$NF == date' ${pattern_dir}.csv | wc -l 2>/dev/null)
+        countHeaders=0
+    else
+        countWheader=$(wc -l ${pattern_dir}.csv 2>/dev/null | awk 'END {print $1}');
+        countHeaders=$(ls -l ${pattern_dir}.csv 2>/dev/null | wc -l);
+    fi
 
     echo $(( countWheader - countHeaders ))
 }
 
+
 print_errors() {
     local input_dir=$1
+    errors=$(grep -Ei 'error|critical' ${input_dir}*log)
+    error_count=0
+    if [[ -z "$errors" ]]; then
+        error_count=0
+    else
+        error_count=$(echo "$errors"  | wc -l)
+    fi
 
-    errors=$(grep -i 'error' ${input_dir}*log)
-    error_count=$(( (echo $errors | wc -l) ))
-    echo "# of errors in logs: ${error_count}" >> $REPORT_FILE
+    echo "# of errors in logs: ${error_count}"
 
     if [[ -n "$errors" ]]; then
         echo -e "\nErrors" >> $REPORT_FILE
@@ -207,7 +220,7 @@ print_missing_files_info() {
 
 assign_received() {
     for key in "${!patterns_dir[@]}"; do
-        arr_received[$key]=$(calculate_received "${patterns_dir[$key]}")
+        arr_received[$key]=$(calculate_received "" "${patterns_dir[$key]}")
     done
 }
 
@@ -227,6 +240,10 @@ for sys in ${ARR_SYS[@]}; do
             patterns_dir["total"]="/home/azureuser/blobmount/${sys}/data/input/*trades_${BUSINESSDATE}*"
             patterns_dir["loan"]="/home/azureuser/blobmount/${sys}/data/input/*loantrades_${BUSINESSDATE}*"
             patterns_dir["repo"]="/home/azureuser/blobmount/${sys}/data/input/*repotrades_${BUSINESSDATE}*"
+
+            patterns_dir["tba_trades"]="/home/azureuser/blobmount/${sys}/data/input/*_trades_${BUSINESSDATE}*"
+            arr_received["tba_trades"]=$(calculate_received $sys "${patterns_dir["tba_trades"]}")
+            echo "Total Trades received in Input: ${arr_received["tba_trades"]}"
 
             patterns_dir["tba_eod_loan"]="/home/azureuser/blobmount/${sys}/data/output/eod_loan_trades_${BUSINESSDATE}"
             patterns_dir["tba_eod_repo"]="/home/azureuser/blobmount/${sys}/data/output/eod_repo_trades_${BUSINESSDATE}"
@@ -264,9 +281,9 @@ for sys in ${ARR_SYS[@]}; do
             patterns_dir["crs_stock"]="/home/azureuser/blobmount/${sys}/data/input/stock_data_${BUSINESSDATE}"
             ;;
     esac
-    arr_received["total"]=$(calculate_received "${patterns_dir["total"]}")
-    arr_received["loan"]=$(calculate_received "${patterns_dir["loan"]}")
-    arr_received["repo"]=$(calculate_received "${patterns_dir["repo"]}")
+    arr_received["total"]=$(calculate_received $sys "${patterns_dir["total"]}")
+    arr_received["loan"]=$(calculate_received $sys "${patterns_dir["loan"]}")
+    arr_received["repo"]=$(calculate_received $sys "${patterns_dir["repo"]}")
 
     echo "Total Trades received in Input: ${arr_received["total"]}" >> $REPORT_FILE
     echo "Total Loan received in Input: ${arr_received["loan"]}" >> $REPORT_FILE
