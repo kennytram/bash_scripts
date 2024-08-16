@@ -294,29 +294,29 @@ SQL_COMMANDS_FILE="/home/teamsupport2/sql_commands_current_morning_check.txt"
 formatted_date=$(echo "$BUSINESSDATE" | sed 's/\(....\)\(..\)\(..\)/\1-\2-\3/')
 echo "$formatted_date" > $SQL_COMMANDS_FILE
 
-echo "select count(*) as 'TBA Trades' from TradeBooking.Trades where TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
-echo "select count(*) as 'TBA LoanTrades' from TradeBooking.LoanTrades where TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
-echo "select count(*) as 'TBA RepoTrades' from TradeBooking.RepoTrades where TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
+echo "SELECT COUNT(*) AS 'TBA Trades' FROM TradeBooking.Trades WHERE TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
+echo "SELECT COUNT(*) AS 'TBA LoanTrades' FROM TradeBooking.LoanTrades WHERE TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
+echo "SELECT COUNT(*) AS 'TBA RepoTrades' FROM TradeBooking.RepoTrades WHERE TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
 
-echo "select count(*) as 'PMA Trades' from PoseManagement.Trades where TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
-echo "select count(*) as 'PMA LoanTrades' from PoseManagement.LoanTrades where TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
-echo "select count(*) as 'PMA RepoTrades' from PoseManagement.RepoTrades where TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
+echo "SELECT COUNT(*) AS 'PMA Trades' FROM PoseManagement.Trades WHERE TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
+echo "SELECT COUNT(*) AS 'PMA LoanTrades' FROM PoseManagement.LoanTrades WHERE TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
+echo "SELECT COUNT(*) AS 'PMA RepoTrades' FROM PoseManagement.RepoTrades WHERE TradeDate='$formatted_date';" >> $SQL_COMMANDS_FILE
 
-echo "select count(*) as 'CRA Loan' from creditriskdb.BackOffice_Loan where Timestamp='$formatted_date';" >> $SQL_COMMANDS_FILE
-echo "select count(*) as 'CRA Repo' from creditriskdb.BackOffice_Repo where Timestamp='$formatted_date';" >> $SQL_COMMANDS_FILE
+echo "SELECT COUNT(*) AS 'CRA Loan' FROM creditriskdb.BackOffice_Loan WHERE Timestamp='$formatted_date';" >> $SQL_COMMANDS_FILE
+echo "SELECT COUNT(*) AS 'CRA Repo' FROM creditriskdb.BackOffice_Repo WHERE Timestamp='$formatted_date';" >> $SQL_COMMANDS_FILE
 
 ONE_SQL_TABLE_COMMANDS_FILE="/home/teamsupport2/one_sql_table_commands_current_morning_check.txt"
 echo "$formatted_date" > $ONE_SQL_TABLE_COMMANDS_FILE
 
 echo "SELECT
-    (SELECT count(*) FROM TradeBooking.Trades WHERE TradeDate='$formatted_date') AS 'TBA_Trades',
-    (SELECT count(*) FROM TradeBooking.LoanTrades WHERE TradeDate='$formatted_date') AS 'TBA_LoanTrades',
-    (SELECT count(*) FROM TradeBooking.RepoTrades WHERE TradeDate='$formatted_date') AS 'TBA_RepoTrades',
-    (SELECT count(*) FROM PoseManagement.Trades WHERE TradeDate='$formatted_date') AS 'PMA_Trades',
-    (SELECT count(*) FROM PoseManagement.LoanTrades WHERE TradeDate='$formatted_date') AS 'PMA_LoanTrades',
-    (SELECT count(*) FROM PoseManagement.RepoTrades WHERE TradeDate='$formatted_date') AS 'PMA_RepoTrades',
-    (SELECT count(*) FROM creditriskdb.BackOffice_Loan WHERE Timestamp='$formatted_date') AS 'CRS_Loan',
-    (SELECT count(*) FROM creditriskdb.BackOffice_Repo WHERE Timestamp='$formatted_date') AS 'CRS_Repo';" >> $ONE_SQL_TABLE_COMMANDS_FILE
+    (SELECT COUNT(*) FROM TradeBooking.Trades WHERE TradeDate='$formatted_date') AS 'TBA_Trades',
+    (SELECT COUNT(*) FROM TradeBooking.LoanTrades WHERE TradeDate='$formatted_date') AS 'TBA_LoanTrades',
+    (SELECT COUNT(*) FROM TradeBooking.RepoTrades WHERE TradeDate='$formatted_date') AS 'TBA_RepoTrades',
+    (SELECT COUNT(*) FROM PoseManagement.Trades WHERE TradeDate='$formatted_date') AS 'PMA_Trades',
+    (SELECT COUNT(*) FROM PoseManagement.LoanTrades WHERE TradeDate='$formatted_date') AS 'PMA_LoanTrades',
+    (SELECT COUNT(*) FROM PoseManagement.RepoTrades WHERE TradeDate='$formatted_date') AS 'PMA_RepoTrades',
+    (SELECT COUNT(*) FROM creditriskdb.BackOffice_Loan WHERE Timestamp='$formatted_date') AS 'CRS_LoanTrades',
+    (SELECT COUNT(*) FROM creditriskdb.BackOffice_Repo WHERE Timestamp='$formatted_date') AS 'CRS_RepoTrades';" >> $ONE_SQL_TABLE_COMMANDS_FILE
 
 echo -e '\n' >> $REPORT_FILE
 assign_received
